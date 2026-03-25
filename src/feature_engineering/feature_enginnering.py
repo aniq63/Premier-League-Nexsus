@@ -22,7 +22,7 @@ class RowTracker:
         dropped = entry["dropped"]
         flag = " ROWS DROPPED" if dropped > 0 else ""
 
-        logging.info(f"[{entry['step']}] {entry['before']} → {entry['after']} "
+        logging.info(f"[{entry['step']}] {entry['before']} -> {entry['after']} "
                      f"(dropped {dropped}){flag}")
 
         self._current = None
@@ -32,10 +32,10 @@ class RowTracker:
         logging.info("PIPELINE ROW AUDIT")
         logging.info("=" * 60)
         for e in self.log:
-            logging.info(f"{e['step']}: {e['before']} → {e['after']} "
+            logging.info(f"{e['step']}: {e['before']} -> {e['after']} "
                          f"(lost {e['dropped']})")
             if e["note"]:
-                logging.info(f"  └─ {e['note']}")
+                logging.info(f"  |_ {e['note']}")
         logging.info("=" * 60)
 
 
@@ -145,7 +145,7 @@ class FeatureEngineering:
             avg_cols = [f"{c}_avg_last5" for c in STAT_COLS]
             before = len(tl)
             tl.dropna(subset=avg_cols, inplace=True)
-            logging.info(f"Timeline: {before} → {len(tl)} (rolling drop)")
+            logging.info(f"Timeline: {before} -> {len(tl)} (rolling drop)")
 
             # ---- Merge ----
             keep = ["date", "team"] + avg_cols
