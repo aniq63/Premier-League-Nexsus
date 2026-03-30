@@ -186,7 +186,8 @@ class PredictionPipeline:
     # ══════════════════════════════════════════════════════════════════════════
     def _fetch_espn_fixtures(self, league: str = "ENG-Premier League") -> pd.DataFrame:
         """
-        Fetch the next 10 upcoming EPL fixtures from ESPN via soccerdata.
+        Fetch all upcoming matches within a 4-day window starting from the
+        first found future match (next "gameweek") from ESPN.
 
         Returns
         -------
@@ -200,17 +201,30 @@ class PredictionPipeline:
             logging.info(f"Fetching fixtures from ESPN (season={season})...")
             espn = sd.ESPN(leagues=league, seasons=season)
 
-            fixtures = (
+            df = (
                 espn.read_schedule()
                 .assign(date=lambda df: pd.to_datetime(df["date"]))
                 .sort_values("date")
-                .loc[lambda df: df["date"] > pd.Timestamp.utcnow()]
-                .head(10)
+            )
+
+            # Filter for future matches
+            upcoming = df[df["date"] > pd.Timestamp.utcnow()].reset_index(drop=True)
+
+            if upcoming.empty:
+                logging.warning("No future fixtures found in ESPN data.")
+                return pd.DataFrame(columns=["home_team", "away_team", "date"])
+
+            # 🧠 Define gameweek as matches within 4 days of the FIRST upcoming match
+            start_time = upcoming.loc[0, "date"]
+            window     = pd.Timedelta(days=4)
+
+            fixtures = (
+                upcoming[upcoming["date"] <= start_time + window]
                 [["home_team", "away_team", "date"]]
                 .reset_index(drop=True)
             )
 
-            logging.info(f"Fetched {len(fixtures)} upcoming fixture(s) from ESPN.")
+            logging.info(f"Fetched {len(fixtures)} fixture(s) for the next gameweek window.")
             return fixtures
 
         except Exception as e:
