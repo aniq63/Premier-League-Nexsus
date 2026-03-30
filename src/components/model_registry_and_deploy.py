@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 
 import mlflow
 from mlflow.tracking import MlflowClient
+import dagshub
 
 
 from config.constants import EXPERIMENT_NAME, MODEL_NAME
@@ -57,19 +58,34 @@ class ModelRegistryAndDeploy:
     # ──────────────────────────────────────────────────────────────────────────
     def _connect_to_mlflow(self):
         try:
-            if MLFLOW_TRACKING_USERNAME and MLFLOW_TRACKING_PASSWORD:
-                os.environ["MLFLOW_TRACKING_USERNAME"] = MLFLOW_TRACKING_USERNAME
-                os.environ["MLFLOW_TRACKING_PASSWORD"] = MLFLOW_TRACKING_PASSWORD
-    
-            uri = (
-                MLFLOW_TRACKING_URI
-                if MLFLOW_TRACKING_URI and MLFLOW_TRACKING_URI.startswith("http")
-                else "https://dagshub.com/aniqramzan5758/EPL_Match_Prediction.mlflow"
-            )
-    
+            # Always read fresh from environment in CI
+            uri = os.getenv("MLFLOW_TRACKING_URI") or \
+                  "https://dagshub.com/aniqramzan5758/EPL_Match_Prediction.mlflow"
+            
+            username = os.getenv("MLFLOW_TRACKING_USERNAME")
+            password = os.getenv("MLFLOW_TRACKING_PASSWORD") or os.getenv("DAGSHUB_TOKEN")
+
+            if username and password:
+                # Standard MLflow env vars
+                os.environ["MLFLOW_TRACKING_USERNAME"] = username
+                os.environ["MLFLOW_TRACKING_PASSWORD"] = password
+                
+                # Check if it's DagsHub to use their specific initialization
+                if "dagshub.com" in uri.lower():
+                    try:
+                        parts = uri.split("/")
+                        if len(parts) >= 5:
+                            repo_owner = parts[3]
+                            repo_name = parts[4].replace(".mlflow", "")
+                            
+                            logging.info(f"Initializing DagsHub for {repo_owner}/{repo_name}")
+                            dagshub.init(repo_owner=repo_owner, repo_name=repo_name, token=password)
+                    except Exception as e:
+                        logging.warning(f"DagsHub init failed, falling back to standard MLflow: {e}")
+
             mlflow.set_tracking_uri(uri)
             logging.info(f"Connected to MLflow at: {uri}")
-    
+
         except Exception as e:
             logging.error(f"Error configuring MLflow: {e}")
             raise MyException(e, sys)
