@@ -1,3 +1,4 @@
+import os
 import sys
 import io
 import logging as std_logging
@@ -8,7 +9,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import mlflow
 import mlflow.sklearn
-import dagshub
+
 from sklearn.metrics import (
     accuracy_score,
     precision_score,
@@ -21,6 +22,10 @@ from sklearn.metrics import (
 
 from src.utils.logger import logging
 from src.utils.exception import MyException
+
+MLFLOW_TRACKING_URI      = os.getenv("MLFLOW_TRACKING_URI")
+MLFLOW_TRACKING_USERNAME = os.getenv("MLFLOW_TRACKING_USERNAME")
+MLFLOW_TRACKING_PASSWORD = os.getenv("MLFLOW_TRACKING_PASSWORD")
 
 
 # ============================================================
@@ -74,6 +79,25 @@ class ModelEvaluator:
     # --------------------------------------------------------
     # Internal helpers
     # --------------------------------------------------------
+
+    def _connect_to_mlflow(self):
+        try:
+            if MLFLOW_TRACKING_USERNAME and MLFLOW_TRACKING_PASSWORD:
+                os.environ["MLFLOW_TRACKING_USERNAME"] = MLFLOW_TRACKING_USERNAME
+                os.environ["MLFLOW_TRACKING_PASSWORD"] = MLFLOW_TRACKING_PASSWORD
+
+            uri = (
+                MLFLOW_TRACKING_URI
+                if MLFLOW_TRACKING_URI and MLFLOW_TRACKING_URI.startswith("http")
+                else "https://dagshub.com/aniqramzan5758/EPL_Match_Prediction.mlflow"
+            )
+
+            mlflow.set_tracking_uri(uri)
+            logging.info(f"Connected to MLflow at: {uri}")
+
+        except Exception as e:
+            logging.error(f"Error configuring MLflow: {e}")
+            raise MyException(e, sys)
 
     def _compute_metrics(self, y_pred: np.ndarray) -> dict:
         """Compute and return all classification metrics."""
@@ -235,9 +259,8 @@ class ModelEvaluator:
         try:
             logging.info(f"Logging to MLflow | experiment='{self.experiment_name}'")
             
-            # Initialize DagsHub
-            dagshub.init(repo_owner='aniqramzan5758', repo_name='EPL_Match_Prediction', mlflow=True)
-            mlflow.set_tracking_uri("https://dagshub.com/aniqramzan5758/EPL_Match_Prediction.mlflow")
+            # Connect to MLflow
+            self._connect_to_mlflow()
             
             mlflow.set_experiment(self.experiment_name)
             

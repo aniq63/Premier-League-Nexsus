@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 import mlflow
 from mlflow.tracking import MlflowClient
-import dagshub
+
 
 from config.constants import EXPERIMENT_NAME, MODEL_NAME
 from src.utils.logger import logging
@@ -60,21 +60,16 @@ class ModelRegistryAndDeploy:
             if MLFLOW_TRACKING_USERNAME and MLFLOW_TRACKING_PASSWORD:
                 os.environ["MLFLOW_TRACKING_USERNAME"] = MLFLOW_TRACKING_USERNAME
                 os.environ["MLFLOW_TRACKING_PASSWORD"] = MLFLOW_TRACKING_PASSWORD
-
-            dagshub.init(
-                repo_owner="aniqramzan5758",
-                repo_name="EPL_Match_Prediction",
-                mlflow=True,
-            )
-
+    
             uri = (
                 MLFLOW_TRACKING_URI
                 if MLFLOW_TRACKING_URI and MLFLOW_TRACKING_URI.startswith("http")
                 else "https://dagshub.com/aniqramzan5758/EPL_Match_Prediction.mlflow"
             )
+    
             mlflow.set_tracking_uri(uri)
             logging.info(f"Connected to MLflow at: {uri}")
-
+    
         except Exception as e:
             logging.error(f"Error configuring MLflow: {e}")
             raise MyException(e, sys)
