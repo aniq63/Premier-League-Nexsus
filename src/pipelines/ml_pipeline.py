@@ -149,13 +149,17 @@ class MLPipeline:
         """
         try:
             logging.info("STEP 6: Starting model registry and deployment...")
-            registry = ModelRegistryAndDeploy(metric_name="accuracy", higher_is_better=True)
-            registry.run_deployment_pipeline()
-            logging.info("Model registry and deployment step completed successfully")
-            return True
+            try:
+                registry = ModelRegistryAndDeploy(metric_name="accuracy", higher_is_better=True)
+                registry.run_deployment_pipeline()
+                logging.info("Model registry and deployment step completed successfully")
+                return True
+            except Exception as e:
+                logging.warning(f"Deployment skipped due to error: {e}")
+                return False
         except Exception as e:
-            logging.error(f"Error occurred during model deployment step: {str(e)}")
-            raise
+            logging.error(f"Unexpected error in deploy_model wrapper: {str(e)}")
+            return False
 
     def run(self):
         """
@@ -171,7 +175,13 @@ class MLPipeline:
             self.transform_data()
             self.split_data()
             self.train_model()
-            self.evaluate_model()
+            
+            # Wrap evaluation in try-except to prevent pipeline from dying on MLflow errors
+            try:
+                self.evaluate_model()
+            except Exception as e:
+                logging.warning(f"MLflow logging/evaluation failed: {e}")
+            
             self.deploy_model()
 
             logging.info("=" * 60)
