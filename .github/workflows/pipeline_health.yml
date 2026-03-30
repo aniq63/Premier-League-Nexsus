@@ -1,0 +1,102 @@
+name: Pipeline Health Monitor
+
+on:
+  schedule:
+    # Run every Monday at 9 AM UTC for weekly report
+    - cron: "0 9 * * 1"
+
+  workflow_dispatch:
+
+jobs:
+  generate-health-report:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: 📦 Install dependencies
+        run: |
+          pip install pandas requests python-dateutil
+
+      - name: 📊 Generate Health Report
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python - << 'EOF'
+          import os
+          import pandas as pd
+          from datetime import datetime, timedelta
+          from src.components.data_ingestion import DataIngestion
+
+          print("🏥 Generating Pipeline Health Report...")
+          print("=" * 60)
+
+          try:
+              # Fetch data
+              ingestion = DataIngestion()
+              df = ingestion.fetch_all_data()
+              
+              # Basic stats
+              total_samples = len(df)
+              print(f"📊 Total Samples in Database: {total_samples}")
+              
+              # Check if 'date' column exists
+              if 'date' in df.columns:
+                  df['date'] = pd.to_datetime(df['date'])
+                  latest_date = df['date'].max()
+                  oldest_date = df['date'].min()
+                  
+                  print(f"📅 Data Range: {oldest_date.date()} to {latest_date.date()}")
+                  
+                  # Recent data check
+                  days_since_update = (datetime.now() - latest_date).days
+                  print(f"⏰ Last Update: {days_since_update} days ago")
+                  
+                  if days_since_update > 7:
+                      print("⚠️ WARNING: No new data in over 7 days!")
+                  else:
+                      print("✅ Data is recent")
+                  
+                  # Weekly data volume
+                  last_week = datetime.now() - timedelta(days=7)
+                  recent_samples = len(df[df['date'] >= last_week])
+                  print(f"📈 Samples added (last 7 days): {recent_samples}")
+                  
+              # Data quality checks
+              null_counts = df.isnull().sum()
+              if null_counts.sum() > 0:
+                  print("\n⚠️ Null Values Detected:")
+                  print(null_counts[null_counts > 0])
+              else:
+                  print("✅ No null values detected")
+              
+              print("\n" + "=" * 60)
+              print("✅ Health Report Generated Successfully")
+              
+          except Exception as e:
+              print(f"❌ Error generating report: {str(e)}")
+              exit(1)
+          EOF
+
+      - name: 📝 Create Summary
+        if: always()
+        run: |
+          echo "## 🏥 Pipeline Health Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Generated:** $(date -u)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Quick Stats" >> $GITHUB_STEP_SUMMARY
+          echo "- Check logs for detailed metrics" >> $GITHUB_STEP_SUMMARY
+          echo "- Next ETL run: Tuesday/Friday 2 AM UTC" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Actions Needed" >> $GITHUB_STEP_SUMMARY
+          echo "- [ ] Review data freshness" >> $GITHUB_STEP_SUMMARY
+          echo "- [ ] Check for anomalies" >> $GITHUB_STEP_SUMMARY
+          echo "- [ ] Verify ML model performance" >> $GITHUB_STEP_SUMMARY

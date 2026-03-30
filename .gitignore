@@ -214,3 +214,7 @@ myenv
 mlruns
 mlflow.db
 aniq ramzan
+
+.env.local
+.env.*.local
+*.env

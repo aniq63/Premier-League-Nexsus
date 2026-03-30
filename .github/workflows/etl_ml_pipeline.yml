@@ -1,0 +1,198 @@
+name: ETL Pipeline (Improved)
+
+on:
+  schedule:
+    # Tuesday 2 AM UTC - After weekend Premier League matches
+    - cron: "0 2 * * 2"
+    # Friday 2 AM UTC - After midweek matches
+    - cron: "0 2 * * 5"
+
+  workflow_dispatch: # Allow manual trigger
+    inputs:
+      force_ml_training:
+        description: "Force ML training regardless of new samples"
+        required: false
+        type: boolean
+        default: false
+
+env:
+  PYTHON_VERSION: "3.10"
+  DATA_COUNT_FILE: "etl_data_count.txt"
+
+jobs:
+  etl-extraction:
+    runs-on: ubuntu-latest
+    outputs:
+      should_train_ml: ${{ steps.decision.outputs.should_train }}
+      new_samples_count: ${{ steps.decision.outputs.new_samples }}
+      total_samples: ${{ steps.decision.outputs.total_samples }}
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+
+      - name: 📦 Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: 💾 Restore previous data count from cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.DATA_COUNT_FILE }}
+          key: etl-data-count-${{ github.run_number }}
+          restore-keys: |
+            etl-data-count-
+
+      - name: 📊 Get previous sample count
+        id: previous
+        run: |
+          if [ -f "${{ env.DATA_COUNT_FILE }}" ]; then
+            PREV_COUNT=$(cat ${{ env.DATA_COUNT_FILE }})
+            echo "Found previous count: $PREV_COUNT"
+          else
+            PREV_COUNT=0
+            echo "No previous count found, using 0"
+          fi
+          echo "count=$PREV_COUNT" >> $GITHUB_OUTPUT
+
+      - name: 🔄 Run ETL Pipeline
+        id: etl_run
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          echo "Starting ETL Pipeline..."
+          python -m src.pipelines.etl_pipeline 2>&1 | tee etl_output.log
+          echo "ETL Pipeline completed"
+
+      - name: 📈 Calculate data increase
+        id: decision
+        run: |
+          # Get current count from database
+          CURRENT_COUNT=$(python -c "
+          from src.components.data_ingestion import DataIngestion
+          import warnings
+          warnings.filterwarnings('ignore')
+
+          try:
+              ingestion = DataIngestion()
+              df = ingestion.fetch_all_data()
+              print(len(df))
+          except Exception as e:
+              print('0')
+              exit(1)
+          ")
+
+          PREVIOUS_COUNT=${{ steps.previous.outputs.count }}
+          NEW_SAMPLES=$((CURRENT_COUNT - PREVIOUS_COUNT))
+
+          echo "📊 Data Analysis:"
+          echo "  Previous samples: $PREVIOUS_COUNT"
+          echo "  Current samples: $CURRENT_COUNT"
+          echo "  New samples: $NEW_SAMPLES"
+
+          # Save outputs
+          echo "new_samples=$NEW_SAMPLES" >> $GITHUB_OUTPUT
+          echo "total_samples=$CURRENT_COUNT" >> $GITHUB_OUTPUT
+
+          # Decision logic
+          FORCE_TRAIN="${{ inputs.force_ml_training }}"
+
+          if [ "$FORCE_TRAIN" = "true" ]; then
+            echo "should_train=true" >> $GITHUB_OUTPUT
+            echo "✅ ML Training FORCED by manual trigger"
+          elif [ $NEW_SAMPLES -ge 5 ]; then
+            echo "should_train=true" >> $GITHUB_OUTPUT
+            echo "✅ NEW SAMPLES ≥ 5 detected ($NEW_SAMPLES) - Will trigger ML Pipeline"
+          else
+            echo "should_train=false" >> $GITHUB_OUTPUT
+            echo "⏭️ Only $NEW_SAMPLES new samples - Skipping ML training (threshold: 5)"
+          fi
+
+          # Save current count for next run
+          echo $CURRENT_COUNT > ${{ env.DATA_COUNT_FILE }}
+
+      - name: 💾 Save data count to cache
+        uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: ${{ env.DATA_COUNT_FILE }}
+          key: etl-data-count-${{ github.run_number }}
+
+      - name: 📤 Upload ETL logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: etl-logs-${{ github.run_number }}
+          path: |
+            etl_output.log
+            logs/
+          retention-days: 14
+
+      - name: 📝 Job Summary
+        if: always()
+        run: |
+          echo "## ETL Pipeline Summary 📊" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Run Time:** $(date -u)" >> $GITHUB_STEP_SUMMARY
+          echo "**Total Samples:** ${{ steps.decision.outputs.total_samples }}" >> $GITHUB_STEP_SUMMARY
+          echo "**New Samples:** ${{ steps.decision.outputs.new_samples }}" >> $GITHUB_STEP_SUMMARY
+          echo "**ML Training:** ${{ steps.decision.outputs.should_train == 'true' && '✅ Will Run' || '⏭️ Skipped' }}" >> $GITHUB_STEP_SUMMARY
+
+  ml-training:
+    needs: etl-extraction
+    if: needs.etl-extraction.outputs.should_train_ml == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+
+      - name: 📦 Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: 🤖 Run ML Pipeline
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+        run: |
+          echo "🚀 Starting ML Pipeline..."
+          echo "📊 Training with ${{ needs.etl-extraction.outputs.new_samples_count }} new samples"
+          echo "📈 Total dataset: ${{ needs.etl-extraction.outputs.total_samples }} samples"
+          python -m src.pipelines.ml_pipeline 2>&1 | tee ml_output.log
+
+      - name: 📤 Upload ML artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ml-artifacts-${{ github.run_number }}
+          path: |
+            ml_output.log
+            artifacts/
+            logs/
+            models/
+          retention-days: 30
+
+      - name: 📝 Job Summary
+        if: always()
+        run: |
+          echo "## ML Pipeline Summary 🤖" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Trigger:** New data detected (${{ needs.etl-extraction.outputs.new_samples_count }} samples)" >> $GITHUB_STEP_SUMMARY
+          echo "**Total Dataset Size:** ${{ needs.etl-extraction.outputs.total_samples }} samples" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
