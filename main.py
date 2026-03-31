@@ -9,8 +9,12 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from src.routes.dashboard import router as dashboard_router
+
 from src.utils.logger import logging as logger
+
+from src.routes.dashboard import router as dashboard_router
+from src.routes.analytics import router as analytics_router
+from src.routes.ml_gameweek_predictions import router as ml_gameweek_predictions_router
 
 # 1. App Configuration (Internal)
 class AppConfig:
@@ -59,10 +63,16 @@ async def global_exception_handler(request: Request, exc: Exception):
         content={"detail": "An internal server error occurred. Please try again later."},
     )
 
-# 6. Route Inclusion
+# Route Inclusion
 app.include_router(dashboard_router, prefix="/api", tags=["Dashboard"])
 
-# 7. Basic Routes (Root & Health Check)
+# Analytics routes (Supabase deep-dive stats)
+app.include_router(analytics_router, prefix="/api/analytics", tags=["Player & Team Stats"])
+
+# Machine Learning Predictions
+app.include_router(ml_gameweek_predictions_router, prefix="/api/predictions", tags=["ML Predictions"])
+
+# Basic Routes (Root & Health Check)
 @app.get("/", tags=["Monitoring"])
 async def root():
     return {
