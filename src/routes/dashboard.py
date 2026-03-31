@@ -1,3 +1,4 @@
+# Dashboard.py
 import requests
 from fastapi import APIRouter
 import os
@@ -68,7 +69,7 @@ def get_news():
             'apiKey': NEWS_API_KEY
         }
         res = requests.get(NEWS_URL, params=params)
-        return res.json().get('articles', [])[:5]
+        return res.json().get('articles', [])[:10]
     except Exception:
         return []
 
