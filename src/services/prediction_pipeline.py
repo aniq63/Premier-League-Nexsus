@@ -579,6 +579,39 @@ class PredictionPipeline:
             raise MyException(e, sys)
 
     # ══════════════════════════════════════════════════════════════════════════
+    # Feature Importance
+    # ══════════════════════════════════════════════════════════════════════════
+    def get_feature_importance(self) -> list:
+        """
+        Extract feature importance from the loaded model.
+        Returns the top 8 most important features paired with their scores.
+        """
+        try:
+            model = self.load_model()
+            
+            # AdaBoost models typically have feature_importances_
+            if hasattr(model, "feature_importances_"):
+                importances = model.feature_importances_
+                
+                # Pair with FEATURE_COLUMNS
+                feat_imp = [
+                    {"feature": feat, "importance": round(float(imp), 4)}
+                    for feat, imp in zip(FEATURE_COLUMNS, importances)
+                ]
+                
+                # Sort by importance descending
+                feat_imp.sort(key=lambda x: x["importance"], reverse=True)
+                
+                # Take top 8
+                return feat_imp[:8]
+            else:
+                logging.warning("Model does not have feature_importances_ attribute.")
+                return []
+        except Exception as e:
+            logging.error(f"get_feature_importance failed: {e}")
+            return []
+
+    # ══════════════════════════════════════════════════════════════════════════
     # Utility
     # ══════════════════════════════════════════════════════════════════════════
     @classmethod
@@ -775,6 +808,28 @@ def main() -> dict:
                 index=False
             )
             logging.info("Supabase upload successful (table replaced).")
+
+            # ── Step E: Save feature importance to Supabase ───────────────────────────
+            try:
+                logging.info("Extracting top 8 important features...")
+                top_features = pipeline.get_feature_importance()
+                
+                if top_features:
+                    feat_df = pd.DataFrame(top_features)
+                    feat_df["created_at"] = datetime.now()
+                    
+                    logging.info(f"Saving top 8 features to Supabase table 'feature_importance'...")
+                    feat_df.to_sql(
+                        name="feature_importance",
+                        con=sync_engine,
+                        if_exists="replace",
+                        index=False
+                    )
+                    logging.info("Feature importance upload successful (table replaced).")
+                else:
+                    logging.warning("No feature importance found to save.")
+            except Exception as feat_err:
+                logging.error(f"Failed to save feature importance to Supabase: {feat_err}")
 
         except Exception as db_err:
             logging.error(f"Failed to save predictions to Supabase: {db_err}")
