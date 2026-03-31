@@ -94,9 +94,5 @@ async def health_check():
 if __name__ == "__main__":
     import uvicorn
     logger.info(f"Launching server on {AppConfig.HOST}:{AppConfig.PORT}")
-    uvicorn.run(
-        "main:app",
-        host=AppConfig.HOST,
-        port=AppConfig.PORT,
-        reload=AppConfig.DEBUG
-    )
+    PORT = int(os.environ.get("PORT", 8000)) 
+    uvicorn.run("main:app", host="0.0.0.0", port=PORT, reload=AppConfig.DEBUG)
