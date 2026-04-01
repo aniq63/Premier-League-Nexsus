@@ -1,0 +1,74 @@
+name: EPL Prediction Pipeline
+
+on:
+  schedule:
+    # Runs every 3 days at 02:00 UTC
+    - cron: "0 2 */3 * *"
+  workflow_dispatch: # manual trigger
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+
+    env:
+      # AWS
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+
+      # Database (Supabase)
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      # Python behavior
+      PYTHONUNBUFFERED: 1
+
+    steps:
+      # ─────────────────────────────────────────────
+      # 1. Checkout repo
+      # ─────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ─────────────────────────────────────────────
+      # 2. Setup Python
+      # ─────────────────────────────────────────────
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      # ─────────────────────────────────────────────
+      # 3. Cache dependencies (speeds up runs)
+      # ─────────────────────────────────────────────
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      # ─────────────────────────────────────────────
+      # 4. Install dependencies
+      # ─────────────────────────────────────────────
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # ─────────────────────────────────────────────
+      # 5. Run prediction pipeline
+      # ─────────────────────────────────────────────
+      - name: Run EPL Prediction Pipeline
+        run: |
+          echo "Starting pipeline..."
+          python -m src.services.prediction_pipeline
+
+      # ─────────────────────────────────────────────
+      # 6. Optional: Notify on failure
+      # ─────────────────────────────────────────────
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "Pipeline failed!"
