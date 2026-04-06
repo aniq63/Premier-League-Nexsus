@@ -6,6 +6,7 @@
   <img src="https://img.shields.io/badge/AWS_S3-232F3E?style=for-the-badge&logo=amazonaws&logoColor=white" />
   <img src="https://img.shields.io/badge/Supabase-3FCF8E?style=for-the-badge&logo=supabase&logoColor=white" />
   <img src="https://img.shields.io/badge/GitHub_Actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white" />
+  <a href="https://hub.docker.com/r/aniqramzan/epl-match-prediction"><img src="https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white" /></a>
 </p>
 
 <h1 align="center">⚽ EPL Nexus — Premier League Match Prediction Platform</h1>
@@ -362,6 +363,22 @@ uvicorn main:app --reload --port 8000
 ```
 
 The API will be available at `http://localhost:8000` and docs at `http://localhost:8000/docs`.
+
+---
+
+## 🐳 Docker
+
+You can easily run the pre-built application directly from Docker Hub:
+
+```bash
+# Pull the latest image
+docker pull aniqramzan/epl-match-prediction:latest
+
+# Run the container (requires your .env file)
+docker run -p 8000:8000 --env-file .env aniqramzan/epl-match-prediction:latest
+```
+
+The API will be accessible at `http://localhost:8000`.
 
 ---
 
