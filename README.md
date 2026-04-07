@@ -366,7 +366,9 @@ The API will be available at `http://localhost:8000` and docs at `http://localho
 
 ## 🐳 Docker
 
-You can easily run the pre-built application directly from Docker Hub:
+[![Docker Hub](https://img.shields.io/badge/docker_hub-epl--match--prediction-blue?logo=docker&logoColor=white)](https://hub.docker.com/r/aniqramzan/epl-match-prediction)
+
+You can easily run the pre-built application directly from Docker Hub: [aniqramzan/epl-match-prediction](https://hub.docker.com/r/aniqramzan/epl-match-prediction)
 
 ```bash
 # Pull the latest image
