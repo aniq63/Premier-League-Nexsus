@@ -1,18 +1,30 @@
+# Git and environments
 .git
-.github
-myenv
-.venv
-venv
-env
-__pycache__
-*.pyc
-*.pyo
-*.pyd
-.Python
-logs/
-notebooks/
-frontend/
-.pytest_cache/
-.env
-.project-root
+.gitignore
+myenv/
+venv/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Jupyter Notebooks
+.ipynb_checkpoints
+
+# VS Code
 .vscode/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Logs
+logs/
+*.log
+
+# Other system files
+.DS_Store
