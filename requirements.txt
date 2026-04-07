@@ -26,4 +26,3 @@ asyncpg
 psycopg2-binary
 mlflow
 dagshub
--e .
