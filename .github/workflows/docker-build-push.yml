@@ -3,15 +3,12 @@ name: Docker Build and Push
 on:
   push:
     branches: ["main"]
-  workflow_run:
-    workflows: ["Python CI"]
-    types:
-      - completed
+  workflow_dispatch: # Allow manual trigger for testing
 
 jobs:
   docker:
     runs-on: ubuntu-latest
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Checkout repository
@@ -27,7 +24,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ secrets.DOCKERHUB_USERNAME }}/databricks-reviews
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/epl-match-prediction
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
