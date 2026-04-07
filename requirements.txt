@@ -25,5 +25,5 @@ pydantic-settings
 asyncpg
 psycopg2-binary
 mlflow
-dagshub
 -e .
+dagshub
